@@ -1,7 +1,7 @@
 import requests
 
 
-def call_ollama(ollama_base: str, model: str, messages, temperature: float = 0, timeout: int = 180) -> str:
+def call_ollama(ollama_base: str, model: str, messages, temperature: float = 0, timeout: int = 180, num_ctx: int = 4096) -> str:
 
     # 1) /api/chat
     chat_url = f"{ollama_base}/api/chat"
@@ -9,7 +9,11 @@ def call_ollama(ollama_base: str, model: str, messages, temperature: float = 0, 
         "model": model,
         "messages": messages,
         "stream": False,
-        "options": {"temperature": temperature},
+        "options": {
+            "temperature": temperature,
+            "num_ctx": num_ctx,
+            "top_k": 1,
+        },
     }
 
     try:
@@ -21,17 +25,3 @@ def call_ollama(ollama_base: str, model: str, messages, temperature: float = 0, 
     except requests.RequestException:
         pass
 
-    # 2) fallback: /api/generate
-    gen_url = f"{ollama_base}/api/generate"
-    prompt = "\n\n".join([f"{m['role'].upper()}: {m['content']}" for m in messages])
-    gen_payload = {
-        "model": model,
-        "prompt": prompt,
-        "stream": False,
-        "options": {"temperature": temperature},
-    }
-
-    r2 = requests.post(gen_url, json=gen_payload, timeout=timeout)
-    if r2.status_code != 200:
-        raise RuntimeError(f"/api/generate error {r2.status_code}: {r2.text}")
-    return r2.json()["response"]

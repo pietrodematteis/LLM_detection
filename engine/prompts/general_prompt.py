@@ -1,4 +1,4 @@
-def build_prompt(filename: str, code: str) -> list[dict]:
+def build_general_prompt(filename: str, code: str) -> list[dict]:
     system = """You are a cryptography detector.
 Return ONLY valid JSON. 
 Do NOT return plain text.
@@ -20,8 +20,12 @@ Detection rules:
 - Different operations of the same asset do NOT create separate COMPONENTs
 - Put all explicitly evidenced operations for that asset into cryptoFunctions
 - Nested cryptographic API calls must be returned as separate COMPONENTS only if they correspond to different cryptographic assets
-- Treat helper cryptographic algorithms as algorithm assets when explicitly instantiated or called
+- Detect only cryptographic assets directly evidenced by the shown code.
+- Do not infer hidden helper algorithms unless their name is explicitly shown.
 - Do NOT merge different algorithms into a single COMPONENT
+- Only add a cryptoFunction if the corresponding operation is explicitly executed in the code.
+- Example: MessageDigest.getInstance(...) alone does NOT prove cryptoFunctions ["digest"].
+- MessageDigest.digest(...) DOES prove cryptoFunctions ["digest"].
 
 
 - COMPONENT = algorithm / certificate / protocol
@@ -31,6 +35,16 @@ Detection rules:
 For each finding, use EXACTLY this structure.
 All fields must always be present.
 If a field does not apply, use null.
+Use null when a field is not applicable.
+Use "unknown" when the field is applicable, but the value cannot be determined from the code.
+
+COMPONENT.name rules:
+- If the exact algorithm name appears as a string literal in the cryptographic API call, use that exact name.
+- Otherwise, if the algorithm name comes from a variable, parameter, field, or method call and is not resolved in the shown code, use "unknown".
+- COMPONENT.name must be the algorithm/protocol/certificate name, not an API class name.
+- Do not use names like MessageDigest, Cipher, or Signature as algorithm names.\
+Name priority:
+- Prefer an explicit literal algorithm name over "unknown".
 
 [
   {{
@@ -104,7 +118,7 @@ EVIDENCE rules:
 Additional rules:
 - Detect only assets explicitly evidenced by the code
 - Do NOT infer missing information
-- If no cryptographic assets are found, return an empty response
+- If no cryptographic assets are found, return exactly []
 
 Nested helper algorithm rule:
 - Padding schemes and padding helper objects must NEVER be returned as separate COMPONENTS. Only in the padding field of the main component
